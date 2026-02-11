@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Five nights at Bisa's house</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:Arial}
+
+.camada{position:absolute;inset:0;display:none;justify-content:center;align-items:center;color:rgba(255,255,255,.2);font-size:3rem}
+
+#relogio{position:absolute;top:20px;right:30px;color:#fff;font-size:2.5rem;font-weight:bold;z-index:500;text-shadow:2px 2px 5px #000}
+#bateria{position:absolute;top:70px;right:30px;color:#0f0;font-size:1.4rem;font-weight:bold;z-index:500;text-shadow:0 0 5px #0f0}
+
+/* ESCRITÓRIO */
+#office{background:#222 url('es.jpeg') no-repeat center/cover;z-index:5;display:flex}
+#office-dark{background:#000;z-index:6;pointer-events:none;display:block;opacity:0;transition:opacity .25s ease}
+.efeito-fade-in{transition:opacity .4s ease!important}
+
+/* ÁREAS */
+.trigger-area-notebook{position:absolute;left:45%;bottom:20%;width:200px;height:80px;cursor:pointer;z-index:10}
+.trigger-area-cima{position:absolute;top:0;left:50%;transform:translateX(-50%);width:400px;height:60px;cursor:pointer;z-index:10}
+.trigger-area-direita{position:absolute;top:20%;right:0;width:80px;height:60%;cursor:pointer;z-index:10}
+
+/* CAMERAS */
+#cameras{background:#111 url('fundocamera1.jpeg') no-repeat center/cover;z-index:20}
+#estatica{position:absolute;inset:0;background:url('chuvisco.gif');opacity:.1;pointer-events:none;z-index:25}
+#ui-camera{position:absolute;bottom:20px;right:20px;width:280px;height:220px;background:rgba(0,0,0,.7) url('minimap.jpeg') no-repeat center/contain;display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:20px;border:2px solid #fff;z-index:26}
+.btn-cam{padding:10px;background:#000;color:#fff;border:1px solid #fff;cursor:pointer;width:70px}
+
+/* VISTAS */
+#cima-view{background:#1a1a1a url('cimaescuro.jpeg') no-repeat center/cover;z-index:30}
+#cima-luz{background:url('cimaluz.jpeg') no-repeat center/cover;opacity:0;position:absolute;inset:0;transition:opacity .1s}
+#direita-view{background:#050505 url('direitadefault.jpeg') no-repeat center/cover;z-index:40}
+#direita-luz{background:url('direitaclaro.jpeg') no-repeat center/cover;opacity:0;position:absolute;inset:0;transition:opacity .1s}
+
+/* ANIMAÇÕES */
+#anim-layer{z-index:100;pointer-events:none;background:#000}
+.gif-anim{width:100%;height:100%;object-fit:cover;display:none}
+
+.btn-fechar{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);padding:10px 30px;cursor:pointer;z-index:150;background:#fff;color:#000;border:none;font-weight:bold}
+</style>
+</head>
+<body>
+
+<div id="relogio">12 AM</div>
+<div id="bateria">🔋 100%</div>
+
+<div id="office" class="camada" style="display:flex">
+    <div id="office-dark" class="camada"></div>
+    <div class="trigger-area-notebook" onclick="abrirCameras()"></div>
+    <div class="trigger-area-cima" onclick="abrirCima()"></div>
+    <div class="trigger-area-direita" onclick="abrirDireita()"></div>
+</div>
+
+<div id="cameras" class="camada">
+    <div id="estatica"></div>
+    <div id="ui-camera">
+        <button class="btn-cam" onclick="mudarCamera(1)">CAM 1</button>
+        <button class="btn-cam" onclick="mudarCamera(2)">CAM 2</button>
+        <button class="btn-cam" onclick="mudarCamera(3)">CAM 3</button>
+    </div>
+    <button class="btn-fechar" onclick="fecharCameras()">BAIXAR MONITOR</button>
+</div>
+
+<div id="cima-view" class="camada">
+    <div id="cima-luz"></div>
+    <button class="btn-fechar" onclick="fecharCima()">VOLTAR</button>
+</div>
+
+<div id="direita-view" class="camada">
+    <div id="direita-luz"></div>
+    <button class="btn-fechar" onclick="fecharDireita()">VOLTAR</button>
+</div>
+
+<div id="anim-layer" class="camada">
+    <img id="gif-abrir" class="gif-anim" src="caman.gif">
+    <img id="gif-fechar" class="gif-anim" src="camanf.gif">
+    <img id="gif-cima" class="gif-anim" src="cima.gif">
+    <img id="gif-cimadesce" class="gif-anim" src="cimadesce.gif">
+</div>
+
+<script>
+const officeDark=document.getElementById('office-dark');
+const animLayer=document.getElementById('anim-layer');
+
+let currentView='office';
+let luzApagada=false;
+let bloqueio=false;
+let bateria=100;
+let segurandoCtrl=false;
+
+/* SONS */
+const sons={
+    lanterna:new Audio('lanterna.mp3'),
+    abrir:new Audio('camera.mp3'),
+    fechar:new Audio('camerafechando.mp3'),
+    cam:new Audio('cam.mp3')
+};
+
+const tempoAnim=850;
+
+/* BATERIA */
+setInterval(()=>{
+    if(currentView==='office'){
+        if(segurandoCtrl && bateria>0) bateria-=0.25;      // usar Control gasta
+        else if(!segurandoCtrl && !luzApagada && bateria<100) bateria+=0.08; // recarrega só se escuro
+    } else {
+        if(segurandoCtrl && bateria>0) bateria-=0.25;     // drena fora do escritório
+    }
+    bateria=Math.max(0,Math.min(100,bateria));
+    document.getElementById('bateria').innerText="🔋 "+Math.floor(bateria)+"%";
+
+    if(bateria<=0){
+        luzApagada=false;
+        segurandoCtrl=false;
+        atualizarVisualLuz();
+    }
+},100);
+
+/* LANTERNA */
+document.addEventListener('keydown',e=>{
+    if(e.key==='Control' && !bloqueio && bateria>0 && !segurandoCtrl){
+        luzApagada=true;
+        segurandoCtrl=true;
+        atualizarVisualLuz();
+        if(currentView==='office') sons.lanterna.play().catch(()=>{});
+    }
+});
+
+document.addEventListener('keyup',e=>{
+    if(e.key==='Control'){
+        luzApagada=false;
+        segurandoCtrl=false;
+        atualizarVisualLuz();
+    }
+});
+
+function atualizarVisualLuz(){
+    const op=luzApagada?'1':'0';
+    if(currentView==='office') officeDark.style.opacity=op;
+    if(currentView==='cima') document.getElementById('cima-luz').style.opacity=op;
+    if(currentView==='direita') document.getElementById('direita-luz').style.opacity=op;
+}
+
+/* FADE ANTES DO GIF (somente cima/direita) */
+function fadeAntes(callback){
+    officeDark.style.opacity='1';
+    setTimeout(callback,120);
+}
+
+/* ANIMAÇÕES */
+function rodarAnim(id){
+    animLayer.style.display='flex';
+    const g=document.getElementById(id);
+    g.style.display='block';
+    g.src=g.src.split('?')[0]+'?t='+Date.now();
+}
+
+function resetAnims(){
+    animLayer.style.display='none';
+    document.querySelectorAll('.gif-anim').forEach(i=>i.style.display='none');
+}
+
+/* CAMERAS (SEM FADE) */
+function abrirCameras(){
+    if(luzApagada||bloqueio) return;
+    bloqueio=true;
+    rodarAnim('gif-abrir');
+    sons.abrir.play().catch(()=>{});
+    setTimeout(()=>{
+        document.getElementById('cameras').style.display='flex';
+        currentView='cameras';
+        resetAnims();
+        bloqueio=false;
+    },tempoAnim);
+}
+
+function fecharCameras(){
+    bloqueio=true;
+    rodarAnim('gif-fechar');
+    sons.fechar.play().catch(()=>{});
+    setTimeout(()=>{
+        document.getElementById('cameras').style.display='none';
+        currentView='office';
+        resetAnims();
+        bloqueio=false;
+    },tempoAnim);
+}
+
+function mudarCamera(n){
+    document.getElementById('cameras').style.backgroundImage=`url('fundocamera${n}.jpeg')`;
+    sons.cam.play().catch(()=>{});
+}
+
+/* MOVIMENTAÇÃO COM FADE (cima/direita) */
+function abrirCima(){
+    if(luzApagada||bloqueio) return;
+    bloqueio=true;
+    fadeAntes(()=>{
+        rodarAnim('gif-cima');
+        setTimeout(()=>{
+            document.getElementById('cima-view').style.display='flex';
+            currentView='cima';
+            resetAnims();
+            officeDark.style.opacity='0';
+            bloqueio=false;
+        },tempoAnim);
+    });
+}
+
+function fecharCima(){
+    if(bloqueio) return;
+    bloqueio=true;
+    fadeAntes(()=>{
+        rodarAnim('gif-cimadesce');
+        setTimeout(()=>{
+            document.getElementById('cima-view').style.display='none';
+            currentView='office';
+            resetAnims();
+            dispararFadeIn();
+            bloqueio=false;
+        },tempoAnim);
+    });
+}
+
+function abrirDireita(){
+    if(luzApagada||bloqueio) return;
+    bloqueio=true;
+    fadeAntes(()=>{
+        document.getElementById('direita-view').style.display='flex';
+        currentView='direita';
+        officeDark.style.opacity='0';
+        bloqueio=false;
+    });
+}
+
+function fecharDireita(){
+    if(bloqueio) return;
+    bloqueio=true;
+    fadeAntes(()=>{
+        document.getElementById('direita-view').style.display='none';
+        currentView='office';
+        dispararFadeIn();
+        bloqueio=false;
+    });
+}
+
+function dispararFadeIn(){
+    officeDark.classList.add('efeito-fade-in');
+    officeDark.style.opacity='1';
+    setTimeout(()=>{
+        officeDark.style.opacity='0';
+        setTimeout(()=>officeDark.classList.remove('efeito-fade-in'),400);
+    },50);
+}
+</script>
+</body>
+</html>
